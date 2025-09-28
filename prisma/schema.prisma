@@ -1,0 +1,120 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum AllocationType {
+  FINANCIAL
+  REAL_ESTATE
+}
+
+enum MovementType {
+  INCOME
+  EXPENSE
+}
+
+enum Frequency {
+  UNIQUE
+  MONTHLY
+  YEARLY
+}
+
+enum InsuranceType {
+  LIFE
+  DISABILITY
+}
+
+enum LifeStatus {
+  VIVO
+  MORTO
+  INVALIDO
+}
+
+model Simulation {
+  id        String              @id @default(cuid())
+  name      String              @unique
+  createdAt DateTime            @default(now())
+  versions  SimulationVersion[]
+}
+
+model SimulationVersion {
+  id           String       @id @default(cuid())
+  simulation   Simulation   @relation(fields: [simulationId], references: [id])
+  simulationId String
+  startDate    DateTime
+  realRatePct  Decimal
+  isLegacy     Boolean      @default(false)
+  createdAt    DateTime     @default(now())
+  versionIndex Int
+  allocations  Allocation[]
+  movements    Movement[]
+  insurances   Insurance[]
+  projections  Projection[]
+
+  @@index([simulationId, createdAt])
+}
+
+model Allocation {
+  id                  String            @id @default(cuid())
+  version             SimulationVersion @relation(fields: [versionId], references: [id])
+  versionId           String
+  type                AllocationType
+  name                String
+  hasFinancing        Boolean           @default(false)
+  financeStart        DateTime?
+  financeInstallments Int?
+  financeMonthlyRate  Decimal?
+  financeDownPayment  Decimal?
+  entries             AllocationEntry[]
+}
+
+model AllocationEntry {
+  id           String     @id @default(cuid())
+  allocation   Allocation @relation(fields: [allocationId], references: [id])
+  allocationId String
+  date         DateTime
+  value        Decimal
+
+  @@unique([allocationId, date])
+}
+
+model Movement {
+  id        String            @id @default(cuid())
+  version   SimulationVersion @relation(fields: [versionId], references: [id])
+  versionId String
+  type      MovementType
+  value     Decimal
+  frequency Frequency
+  startDate DateTime
+  endDate   DateTime?
+}
+
+model Insurance {
+  id         String            @id @default(cuid())
+  version    SimulationVersion @relation(fields: [versionId], references: [id])
+  versionId  String
+  type       InsuranceType
+  name       String
+  startDate  DateTime
+  durationMo Int
+  premiumMo  Decimal
+  insuredAmt Decimal
+}
+
+model Projection {
+  id         String            @id @default(cuid())
+  version    SimulationVersion @relation(fields: [versionId], references: [id])
+  versionId  String
+  status     LifeStatus
+  year       Int
+  finWealth  Decimal
+  realWealth Decimal
+  totalNoIns Decimal
+  total      Decimal
+
+  @@unique([versionId, status, year])
+}
