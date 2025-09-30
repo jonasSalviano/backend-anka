@@ -17,6 +17,7 @@ jest.mock('../../src/services/prisma', () => ({
       create: jest.fn(),
       update: jest.fn(),
       findFirstOrThrow: jest.fn(),
+      findMany: jest.fn(),
     },
     allocation: {
       findMany: jest.fn(),
@@ -191,6 +192,13 @@ describe('SimulationService', () => {
       expect(prisma.insurance.create).toHaveBeenCalledWith({
         data: expect.objectContaining({ versionId: toVersionId, name: mockIns.name }),
       });
+    });
+  });
+
+  describe('getVersions', () => {
+    test('deve buscar as versões de uma simulação', async () => {
+      await SimulationService.getVersions('sim-1');
+      expect(prisma.simulationVersion.findMany).toHaveBeenCalledWith({ where: { simulationId: 'sim-1' }, orderBy: { createdAt: 'desc' } });
     });
   });
 });

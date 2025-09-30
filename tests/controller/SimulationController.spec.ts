@@ -1,212 +1,206 @@
-import { Prisma } from '@prisma/client';
-import { prisma } from '../../src/services/prisma';
+import Fastify, { FastifyInstance } from 'fastify';
+import { SimulationController } from '../../src/controller/SimulationController';
 import { SimulationService } from '../../src/services/SimulationService';
+import { prisma } from '../../src/services/prisma';
 
-const Dec = (n: number | string) => new Prisma.Decimal(n);
-
+jest.mock('../../src/services/SimulationService');
 jest.mock('../../src/services/prisma', () => ({
   prisma: {
     simulation: {
-      create: jest.fn(),
-      update: jest.fn(),
-      delete: jest.fn(),
-      findUniqueOrThrow: jest.fn(),
       findMany: jest.fn(),
+      findUnique: jest.fn(),
+      create: jest.fn(),
     },
     simulationVersion: {
-      create: jest.fn(),
-      update: jest.fn(),
       findFirstOrThrow: jest.fn(),
-      findMany: jest.fn(),
-    },
-    allocation: {
-      findMany: jest.fn(),
       create: jest.fn(),
     },
-    allocationEntry: {
-      findMany: jest.fn(),
-      create: jest.fn(),
-    },
-    movement: {
-      findMany: jest.fn(),
-      create: jest.fn(),
-    },
-    insurance: {
-      findMany: jest.fn(),
-      create: jest.fn(),
-    },
-    $transaction: jest.fn().mockImplementation(async (fn) => fn(prisma)),
   },
 }));
 
-describe('SimulationService', () => {
-  beforeEach(() => {
+describe('SimulationController', () => {
+  let app: FastifyInstance;
+
+  beforeEach(async () => {
+    app = Fastify();
+    await app.register(SimulationController);
     jest.clearAllMocks();
   });
 
-  describe('create', () => {
-    test('deve criar uma simulação e sua primeira versão', async () => {
-      const mockSim = { id: 'sim-1', name: 'Nova Simulação' };
-      const mockVersion = { id: 'ver-1', simulationId: 'sim-1', versionIndex: 1 };
+  afterEach(async () => {
+    await app.close();
+  });
 
-      (prisma.simulation.create as jest.Mock).mockResolvedValue(mockSim);
-      (prisma.simulationVersion.create as jest.Mock).mockResolvedValue(mockVersion);
+  describe('GET /simulations', () => {
+    it('deve listar todas as simulações com sua última versão', async () => {
+      const mockSims = [
+        { id: 'sim-1', name: 'Sim A', versions: [{ id: 'ver-a2' }] },
+        { id: 'sim-2', name: 'Sim B', versions: [] },
+      ];
+      (prisma.simulation.findMany as jest.Mock).mockResolvedValue(mockSims);
 
-      const name = 'Nova Simulação';
-      const startDate = new Date('2025-01-01');
-      const realRatePct = 5;
-
-      const result = await SimulationService.create(name, startDate, realRatePct);
-
-      expect(prisma.simulation.create).toHaveBeenCalledWith({ data: { name } });
-      expect(prisma.simulationVersion.create).toHaveBeenCalledWith({
-        data: {
-          simulationId: mockSim.id,
-          startDate,
-          realRatePct: Dec(realRatePct),
-          versionIndex: 1,
-        },
+      const response = await app.inject({
+        method: 'GET',
+        url: '/simulations',
       });
-      expect(result).toEqual({ sim: mockSim, version: mockVersion });
+
+      expect(response.statusCode).toBe(200);
+      expect(JSON.parse(response.body)).toEqual([
+        { id: 'sim-1', name: 'Sim A', version: { id: 'ver-a2' } },
+        { id: 'sim-2', name: 'Sim B', version: null },
+      ]);
+    });
+  });
+
+  describe('create', () => {
+    it('deve chamar SimulationService.create e retornar 200', async () => {
+      const body = { name: 'Test Sim', startDate: '2025-01-01', realRatePct: 5 };
+      const mockResult = { sim: { id: 'sim-1' }, version: { id: 'ver-1' } };
+      (SimulationService.create as jest.Mock).mockResolvedValue(mockResult);
+
+      const response = await app.inject({
+        method: 'POST',
+        url: '/simulations',
+        payload: body,
+      });
+
+      expect(response.statusCode).toBe(200);
+      expect(JSON.parse(response.body)).toEqual(mockResult);
+      expect(SimulationService.create).toHaveBeenCalledWith(body.name, new Date(body.startDate), body.realRatePct);
+    });
+
+    it('deve chamar next em caso de erro', async () => {
+      const error = new Error('Service Error');
+      (SimulationService.create as jest.Mock).mockRejectedValue(error);
+
+      const response = await app.inject({
+        method: 'POST',
+        url: '/simulations',
+        payload: { name: 'Test Sim', startDate: '2025-01-01', realRatePct: 5 },
+      });
+
+      expect(response.statusCode).toBe(500);
     });
   });
 
   describe('edit', () => {
-    const latestVersion = { id: 'ver-1', simulationId: 'sim-1' };
+    it('deve chamar SimulationService.edit e retornar 200', async () => {
+      const body = { name: 'Updated Sim' };
+      (SimulationService.edit as jest.Mock).mockResolvedValue(undefined);
 
-    beforeEach(() => {
-      (prisma.simulationVersion.findFirstOrThrow as jest.Mock).mockResolvedValue(latestVersion);
-    });
-
-    test('deve editar o nome da simulação e os dados da versão', async () => {
-      const args = { name: 'Nome Editado', startDate: new Date('2026-01-01'), realRatePct: 6 };
-      await SimulationService.edit('sim-1', args);
-
-      expect(prisma.simulation.update).toHaveBeenCalledWith({
-        where: { id: 'sim-1' },
-        data: { name: args.name },
+      const response = await app.inject({
+        method: 'PATCH',
+        url: '/simulations/sim-1',
+        payload: body,
       });
-      expect(prisma.simulationVersion.update).toHaveBeenCalledWith({
-        where: { id: latestVersion.id },
-        data: {
-          startDate: args.startDate,
-          realRatePct: Dec(args.realRatePct),
-        },
-      });
-    });
 
-    test('não deve atualizar a versão se apenas o nome for fornecido', async () => {
-      await SimulationService.edit('sim-1', { name: 'Apenas Nome' });
-
-      expect(prisma.simulation.update).toHaveBeenCalledWith({
-        where: { id: 'sim-1' },
-        data: { name: 'Apenas Nome' },
-      });
-      expect(prisma.simulationVersion.update).not.toHaveBeenCalled();
+      expect(response.statusCode).toBe(200);
+      expect(JSON.parse(response.body)).toEqual({ ok: true });
+      expect(SimulationService.edit).toHaveBeenCalledWith('sim-1', expect.objectContaining(body));
     });
   });
 
   describe('delete', () => {
-    test('deve deletar uma simulação', async () => {
-      (prisma.simulation.findUniqueOrThrow as jest.Mock).mockResolvedValue({ id: 'sim-1', name: 'Simulação a Deletar' });
+    it('deve chamar SimulationService.delete e retornar 200', async () => {
+      (SimulationService.delete as jest.Mock).mockResolvedValue(undefined);
 
-      await SimulationService.delete('sim-1');
+      const response = await app.inject({
+        method: 'DELETE',
+        url: '/simulations/sim-1',
+      });
 
-      expect(prisma.simulation.delete).toHaveBeenCalledWith({ where: { id: 'sim-1' } });
-    });
-
-    test('deve impedir a exclusão da "Situação Atual"', async () => {
-      (prisma.simulation.findUniqueOrThrow as jest.Mock).mockResolvedValue({ id: 'sim-1', name: 'Situação Atual' });
-
-      await expect(SimulationService.delete('sim-1')).rejects.toThrow('Situação Atual não pode ser deletada');
-      expect(prisma.simulation.delete).not.toHaveBeenCalled();
+      expect(response.statusCode).toBe(200);
+      expect(JSON.parse(response.body)).toEqual({ ok: true });
+      expect(SimulationService.delete).toHaveBeenCalledWith('sim-1');
     });
   });
 
   describe('newVersion', () => {
-    test('deve criar uma nova versão e copiar os dados da anterior', async () => {
-      const latestVersion = { id: 'ver-1', simulationId: 'sim-1', startDate: new Date(), realRatePct: Dec(4), versionIndex: 1 };
-      const newVersion = { ...latestVersion, id: 'ver-2', versionIndex: 2 };
+    it('deve chamar SimulationService.newVersion e retornar 200', async () => {
+      const mockVersion = { id: 'ver-2' };
+      (SimulationService.newVersion as jest.Mock).mockResolvedValue(mockVersion);
 
-      (prisma.simulationVersion.findFirstOrThrow as jest.Mock).mockResolvedValue(latestVersion);
-      (prisma.simulationVersion.create as jest.Mock).mockResolvedValue(newVersion);
-
-      // Mock para a cópia de dados
-      (prisma.allocation.findMany as jest.Mock).mockResolvedValue([{ id: 'alloc-1', versionId: 'ver-1' }]);
-      (prisma.movement.findMany as jest.Mock).mockResolvedValue([{ id: 'move-1', versionId: 'ver-1' }]);
-      (prisma.allocationEntry.findMany as jest.Mock).mockResolvedValue([]);
-      (prisma.insurance.findMany as jest.Mock).mockResolvedValue([{ id: 'ins-1', versionId: 'ver-1' }]);
-
-      const result = await SimulationService.newVersion('sim-1');
-
-      // 1. Marca a versão antiga como legada
-      expect(prisma.simulationVersion.update).toHaveBeenCalledWith({
-        where: { id: latestVersion.id },
-        data: { isLegacy: true },
+      const response = await app.inject({
+        method: 'POST',
+        url: '/simulations/sim-1/versions',
       });
 
-      // 2. Cria a nova versão
-      expect(prisma.simulationVersion.create).toHaveBeenCalledWith({
-        data: {
-          simulationId: latestVersion.simulationId,
-          startDate: latestVersion.startDate,
-          realRatePct: latestVersion.realRatePct,
-          versionIndex: latestVersion.versionIndex + 1,
-        },
-      });
-
-      // 3. Verifica se a transação de cópia foi chamada
-      expect(prisma.$transaction).toHaveBeenCalled();
-      expect(result).toEqual(newVersion);
+      expect(response.statusCode).toBe(200);
+      expect(JSON.parse(response.body)).toEqual(mockVersion);
+      expect(SimulationService.newVersion).toHaveBeenCalledWith('sim-1');
     });
   });
 
-  describe('copyVersionData', () => {
-    test('deve copiar todos os dados de uma versão para outra', async () => {
-      const fromVersionId = 'ver-from';
-      const toVersionId = 'ver-to';
+  describe('POST /simulations/:id/duplicate', () => {
+    const mockLatestVersion = { id: 'ver-old', startDate: new Date(), realRatePct: 4, versionIndex: 1 };
+    const mockNewSim = { id: 'sim-new', name: 'Sim Cópia' };
+    const mockNewVersion = { id: 'ver-new', simulationId: 'sim-new' };
 
-      const mockAlloc = { id: 'a-1', versionId: fromVersionId, type: 'FINANCIAL', name: 'CDB' };
-      const mockAllocEntry = { id: 'ae-1', allocationId: 'a-1', date: new Date(), value: Dec(100) };
-      const mockMove = { id: 'm-1', versionId: fromVersionId, type: 'INCOME', value: Dec(1000), frequency: 'MONTHLY', startDate: new Date() };
-      const mockIns = { id: 'i-1', versionId: fromVersionId, type: 'LIFE', name: 'Seguro Vida', startDate: new Date(), durationMo: 12, premiumMo: Dec(50), insuredAmt: Dec(100000) };
+    beforeEach(() => {
+      (prisma.simulationVersion.findFirstOrThrow as jest.Mock).mockResolvedValue(mockLatestVersion);
+      (prisma.simulation.create as jest.Mock).mockResolvedValue(mockNewSim);
+      (prisma.simulationVersion.create as jest.Mock).mockResolvedValue(mockNewVersion);
+      (SimulationService.copyVersionData as jest.Mock).mockResolvedValue(undefined);
+    });
 
-      (prisma.allocation.findMany as jest.Mock).mockResolvedValue([mockAlloc]);
-      (prisma.allocationEntry.findMany as jest.Mock).mockResolvedValue([mockAllocEntry]);
-      (prisma.movement.findMany as jest.Mock).mockResolvedValue([mockMove]);
-      (prisma.insurance.findMany as jest.Mock).mockResolvedValue([mockIns]);
+    it('deve duplicar uma simulação e retornar 200', async () => {
+      (prisma.simulation.findUnique as jest.Mock).mockResolvedValue(null); // Nome não existe
 
-      const newMockAlloc = { ...mockAlloc, id: 'a-2', versionId: toVersionId };
-      (prisma.allocation.create as jest.Mock).mockResolvedValue(newMockAlloc);
-
-      await SimulationService.copyVersionData(fromVersionId, toVersionId);
-
-      // Cópia de Allocation
-      expect(prisma.allocation.create).toHaveBeenCalledWith({
-        data: expect.objectContaining({ versionId: toVersionId, name: mockAlloc.name }),
+      const response = await app.inject({
+        method: 'POST',
+        url: '/simulations/sim-old/duplicate',
+        payload: { newName: 'Sim Cópia' },
       });
 
-      // Cópia de AllocationEntry
-      expect(prisma.allocationEntry.create).toHaveBeenCalledWith({
-        data: expect.objectContaining({ allocationId: newMockAlloc.id, value: mockAllocEntry.value }),
+      expect(response.statusCode).toBe(200);
+      expect(JSON.parse(response.body)).toEqual({ sim: mockNewSim, version: mockNewVersion });
+      expect(SimulationService.copyVersionData).toHaveBeenCalledWith(mockLatestVersion.id, mockNewVersion.id);
+    });
+
+    it('deve retornar 409 se o novo nome já existir', async () => {
+      (prisma.simulation.findUnique as jest.Mock).mockResolvedValue({ id: 'sim-exists' }); // Nome já existe
+
+      const response = await app.inject({
+        method: 'POST',
+        url: '/simulations/sim-old/duplicate',
+        payload: { newName: 'Sim Cópia' },
       });
 
-      // Cópia de Movement
-      expect(prisma.movement.create).toHaveBeenCalledWith({
-        data: expect.objectContaining({ versionId: toVersionId, value: mockMove.value }),
+      expect(response.statusCode).toBe(409);
+      expect(JSON.parse(response.body)).toEqual({ error: 'name_taken' });
+      expect(SimulationService.copyVersionData).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('createCurrentSituation', () => {
+    it('deve chamar SimulationService.createCurrentSituation e retornar 200', async () => {
+      const mockResult = { sim: { id: 'sim-current' }, version: { id: 'ver-current' } };
+      (SimulationService.createCurrentSituation as jest.Mock).mockResolvedValue(mockResult);
+
+      const response = await app.inject({
+        method: 'POST',
+        url: '/simulations/current',
       });
 
-      // Cópia de Insurance
-      expect(prisma.insurance.create).toHaveBeenCalledWith({
-        data: expect.objectContaining({ versionId: toVersionId, name: mockIns.name }),
-      });
+      expect(response.statusCode).toBe(200);
+      expect(JSON.parse(response.body)).toEqual(mockResult);
+      expect(SimulationService.createCurrentSituation).toHaveBeenCalled();
     });
   });
 
   describe('getVersions', () => {
-    test('deve buscar as versões de uma simulação', async () => {
-      await SimulationService.getVersions('sim-1');
-      expect(prisma.simulationVersion.findMany).toHaveBeenCalledWith({ where: { simulationId: 'sim-1' }, orderBy: { createdAt: 'desc' } });
+    it('deve chamar SimulationService.getVersions e retornar 200 com os dados', async () => {
+      const mockVersions = [{ id: 'ver-1', versionIndex: 1 }];
+      (SimulationService.getVersions as jest.Mock).mockResolvedValue(mockVersions);
+
+      const response = await app.inject({
+        method: 'GET',
+        url: '/simulations/sim-1/versions',
+      });
+
+      expect(response.statusCode).toBe(200);
+      expect(JSON.parse(response.body)).toEqual(mockVersions);
+      expect(SimulationService.getVersions).toHaveBeenCalledWith('sim-1');
     });
   });
 });
