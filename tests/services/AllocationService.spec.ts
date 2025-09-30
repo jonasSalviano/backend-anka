@@ -4,7 +4,7 @@ import { AllocationService } from '../../src/services/AllocationService';
 
 const Dec = (n: number | string) => new Prisma.Decimal(n);
 
-jest.mock('../../../src/services/prisma', () => ({
+jest.mock('../../src/services/prisma', () => ({
   prisma: {
     allocation: {
       create: jest.fn(),

@@ -4,7 +4,7 @@ import { InsuranceService } from '../../src/services/InsuranceService';
 
 const Dec = (n: number | string) => new Prisma.Decimal(n);
 
-jest.mock('../../../src/services/prisma', () => ({
+jest.mock('../../src/services/prisma', () => ({
   prisma: {
     insurance: {
       create: jest.fn(),

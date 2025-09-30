@@ -2,7 +2,7 @@ import Fastify, { FastifyInstance } from 'fastify';
 import { MovementController } from '../../src/controller/MovementController';
 import { MovementService } from '../../src/services/MovementService';
 
-jest.mock('../../../src/services/MovementService');
+jest.mock('../../src/services/MovementService');
 
 describe('MovementController', () => {
   let app: FastifyInstance;
