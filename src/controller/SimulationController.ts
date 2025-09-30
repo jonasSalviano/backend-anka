@@ -61,6 +61,6 @@ export async function SimulationController(app: FastifyInstance) {
 
   app.get('/simulations/:id/versions', async (req) => {
     const { id } = z.object({ id: z.string().min(1) }).parse(req.params);
-    return prisma.simulationVersion.findMany({ where: { simulationId: id }, orderBy: { createdAt: 'desc' } });
+    return SimulationService.getVersions(id);
   });
 }

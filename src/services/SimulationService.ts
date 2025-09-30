@@ -121,4 +121,8 @@ export class SimulationService {
       }
     });
   }
+
+  static getVersions(simulationId: string) {
+    return prisma.simulationVersion.findMany({ where: { simulationId }, orderBy: { createdAt: 'desc' } });
+  }
 }
