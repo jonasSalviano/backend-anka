@@ -1,4 +1,7 @@
 import { PrismaClient, Prisma } from '@prisma/client';
+import dotenv from 'dotenv';
+
+dotenv.config();
 const prisma = new PrismaClient();
 
 type AllocationKind = 'FINANCIAL' | 'REAL_ESTATE';
@@ -40,19 +43,6 @@ const insurances = [
 const D = (n: number | string) => new Prisma.Decimal(n);
 const parseBr = (d: string) => { const [dd, mm, yy] = d.split('/').map(Number); return new Date(2000+yy, mm-1, dd); };
 
-// mapeamentos retornando tipos do Prisma 5
-const mapAllocationKind = (k: AllocationKind): Prisma.$Enums.AllocationType =>
-  k === 'FINANCIAL' ? 'FINANCIAL' : 'REAL_ESTATE';
-
-const mapMovementType = (t: string): Prisma.$Enums.MovementType =>
-  t === 'Crédito' ? 'INCOME' : 'EXPENSE';
-
-const mapFrequency = (f: string): Prisma.$Enums.Frequency =>
-  f === 'Única' ? 'UNIQUE' : f === 'Mensal' ? 'MONTHLY' : 'YEARLY';
-
-const inferInsuranceType = (name: string): Prisma.$Enums.InsuranceType =>
-  name.includes('Invalidez') ? 'DISABILITY' : 'LIFE';
-
 async function main() {
   const sim = await prisma.simulation.upsert({
     where: { name: 'Matheus Silveira' },
@@ -61,21 +51,14 @@ async function main() {
   });
 
   const baseVersion = await prisma.simulationVersion.create({
-    data: {
-      simulationId: sim.id,
-      startDate: new Date('2025-01-01'),
-      realRatePct: D(4),
-      versionIndex: 1,
-      isLegacy: false,
-    },
+    data: { simulationId: sim.id, startDate: new Date('2025-01-01'), realRatePct: D(4), versionIndex: 1, isLegacy: false },
   });
 
-  // Allocations + entry
   for (const a of mockAllocations) {
     const alloc = await prisma.allocation.create({
       data: {
         versionId: baseVersion.id,
-        type: mapAllocationKind(a.kind),
+        type: a.kind === 'FINANCIAL' ? 'FINANCIAL' : 'REAL_ESTATE',
         name: a.name,
         hasFinancing: a.financed,
         financeStart: a.financed ? new Date(a.start) : null,
@@ -89,26 +72,24 @@ async function main() {
     });
   }
 
-  // Movements
   for (const m of movements) {
     await prisma.movement.create({
       data: {
         versionId: baseVersion.id,
-        type: mapMovementType(m.type),
+        type: m.type === 'Crédito' ? 'INCOME' : 'EXPENSE',
         value: D(Math.abs(m.value)),
-        frequency: mapFrequency(m.freq),
+        frequency: m.freq === 'Única' ? 'UNIQUE' : m.freq === 'Mensal' ? 'MONTHLY' : 'YEARLY',
         startDate: new Date('2025-01-01'),
         endDate: null,
       },
     });
   }
 
-  // Insurances
   for (const i of insurances) {
     await prisma.insurance.create({
       data: {
         versionId: baseVersion.id,
-        type: inferInsuranceType(i.name),
+        type: i.name.includes('Invalidez') ? 'DISABILITY' : 'LIFE',
         name: i.name,
         startDate: new Date('2025-01-01'),
         durationMo: i.duration * 12,
@@ -118,12 +99,11 @@ async function main() {
     });
   }
 
-  // Projections
   for (const p of projectionData) {
     await prisma.projection.create({
       data: {
         versionId: baseVersion.id,
-        status: 'VIVO', // Prisma.$Enums.LifeStatus
+        status: 'VIVO',
         year: p.year,
         finWealth: D(p.financeiro),
         realWealth: D(p.imobilizado),
@@ -133,7 +113,6 @@ async function main() {
     });
   }
 
-  // Histórico -> versões extras
   let idx = 2;
   const history = [
     { date: '01/02/25', patrimonioFinal: 4312500 },
