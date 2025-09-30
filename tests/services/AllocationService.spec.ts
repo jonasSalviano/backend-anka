@@ -1,6 +1,6 @@
 import { Prisma } from '@prisma/client';
-import { prisma } from '../../services/prisma';
-import { AllocationService } from '../../services/AllocationService';
+import { prisma } from '../../src/services/prisma';
+import { AllocationService } from '../../src/services/AllocationService';
 
 const Dec = (n: number | string) => new Prisma.Decimal(n);
 

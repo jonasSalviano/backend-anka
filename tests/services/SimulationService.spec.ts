@@ -1,10 +1,10 @@
 import { Prisma } from '@prisma/client';
-import { prisma } from '../../services/prisma';
-import { SimulationService } from '../../services/SimulationService';
+import { prisma } from '../../src/services/prisma';
+import { SimulationService } from '../../src/services/SimulationService';
 
 const Dec = (n: number | string) => new Prisma.Decimal(n);
 
-jest.mock('../../services/prisma', () => ({
+jest.mock('../../src/services/prisma', () => ({
   prisma: {
     simulation: {
       create: jest.fn(),
@@ -130,7 +130,6 @@ describe('SimulationService', () => {
       (prisma.simulationVersion.findFirstOrThrow as jest.Mock).mockResolvedValue(latestVersion);
       (prisma.simulationVersion.create as jest.Mock).mockResolvedValue(newVersion);
 
-      // Mock para a cópia de dados
       (prisma.allocation.findMany as jest.Mock).mockResolvedValue([{ id: 'alloc-1', versionId: 'ver-1' }]);
       (prisma.movement.findMany as jest.Mock).mockResolvedValue([{ id: 'move-1', versionId: 'ver-1' }]);
       (prisma.allocationEntry.findMany as jest.Mock).mockResolvedValue([]);
@@ -138,13 +137,11 @@ describe('SimulationService', () => {
 
       const result = await SimulationService.newVersion('sim-1');
 
-      // 1. Marca a versão antiga como legada
       expect(prisma.simulationVersion.update).toHaveBeenCalledWith({
         where: { id: latestVersion.id },
         data: { isLegacy: true },
       });
 
-      // 2. Cria a nova versão
       expect(prisma.simulationVersion.create).toHaveBeenCalledWith({
         data: {
           simulationId: latestVersion.simulationId,
@@ -154,7 +151,6 @@ describe('SimulationService', () => {
         },
       });
 
-      // 3. Verifica se a transação de cópia foi chamada
       expect(prisma.$transaction).toHaveBeenCalled();
       expect(result).toEqual(newVersion);
     });
@@ -180,22 +176,18 @@ describe('SimulationService', () => {
 
       await SimulationService.copyVersionData(fromVersionId, toVersionId);
 
-      // Cópia de Allocation
       expect(prisma.allocation.create).toHaveBeenCalledWith({
         data: expect.objectContaining({ versionId: toVersionId, name: mockAlloc.name }),
       });
 
-      // Cópia de AllocationEntry
       expect(prisma.allocationEntry.create).toHaveBeenCalledWith({
         data: expect.objectContaining({ allocationId: newMockAlloc.id, value: mockAllocEntry.value }),
       });
 
-      // Cópia de Movement
       expect(prisma.movement.create).toHaveBeenCalledWith({
         data: expect.objectContaining({ versionId: toVersionId, value: mockMove.value }),
       });
 
-      // Cópia de Insurance
       expect(prisma.insurance.create).toHaveBeenCalledWith({
         data: expect.objectContaining({ versionId: toVersionId, name: mockIns.name }),
       });

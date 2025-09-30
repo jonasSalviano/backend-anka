@@ -1,8 +1,8 @@
 import Fastify, { FastifyInstance } from 'fastify';
-import { AllocationController } from '../../controller/AllocationController';
-import { AllocationService } from '../../services/AllocationService';
+import { AllocationController } from '../../src/controller/AllocationController';
+import { AllocationService } from '../../src/services/AllocationService';
 
-jest.mock('../../../src/services/AllocationService');
+jest.mock('../../src/services/AllocationService');
 
 describe('AllocationController', () => {
   let app: FastifyInstance;

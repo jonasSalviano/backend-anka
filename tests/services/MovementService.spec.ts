@@ -1,10 +1,10 @@
 import { Prisma } from '@prisma/client';
-import { prisma } from '../../services/prisma';
-import { MovementService } from '../../services/MovementService';
+import { prisma } from '../../src/services/prisma';
+import { MovementService } from '../../src/services/MovementService';
 
 const Dec = (n: number | string) => new Prisma.Decimal(n);
 
-jest.mock('../../../src/services/prisma', () => ({
+jest.mock('../../src/services/prisma', () => ({
   prisma: {
     movement: {
       create: jest.fn(),

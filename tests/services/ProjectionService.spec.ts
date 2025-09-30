@@ -1,7 +1,7 @@
 import { Prisma } from '@prisma/client';
 const Dec = (n: number | string) => new Prisma.Decimal(n);
 
-jest.mock('../../services/prisma', () => ({
+jest.mock('../../src/services/prisma', () => ({
   prisma: {
     simulationVersion: { findFirstOrThrow: jest.fn() },
     allocation: { findMany: jest.fn() },
@@ -14,8 +14,8 @@ jest.mock('../../services/prisma', () => ({
     insurance: { findMany: jest.fn() },
   },
 }));
-import { prisma } from '../../services/prisma';
-import { ProjectionService } from '../../services/ProjectionService';
+import { prisma } from '../../src/services/prisma';
+import { ProjectionService } from '../../src/services/ProjectionService';
 
 describe('ProjectionService.run', () => {
   const baseVersion = {

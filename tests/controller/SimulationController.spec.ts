@@ -1,6 +1,6 @@
 import Fastify, { FastifyInstance } from 'fastify';
-import { SimulationController } from '../../controller/SimulationController';
-import { SimulationService } from '../../services/SimulationService';
+import { SimulationController } from '../../src/controller/SimulationController';
+import { SimulationService } from '../../src/services/SimulationService';
 
 jest.mock('../../../src/services/SimulationService');
 

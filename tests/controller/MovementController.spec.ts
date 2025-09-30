@@ -1,6 +1,6 @@
 import Fastify, { FastifyInstance } from 'fastify';
-import { MovementController } from '../../controller/MovementController';
-import { MovementService } from '../../services/MovementService';
+import { MovementController } from '../../src/controller/MovementController';
+import { MovementService } from '../../src/services/MovementService';
 
 jest.mock('../../../src/services/MovementService');
 

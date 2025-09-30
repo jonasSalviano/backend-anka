@@ -1,8 +1,8 @@
 import Fastify, { FastifyInstance } from 'fastify';
-import { InsuranceController } from '../../controller/InsuranceController';
-import { InsuranceService } from '../../services/InsuranceService';
+import { InsuranceController } from '../../src/controller/InsuranceController';
+import { InsuranceService } from '../../src/services/InsuranceService';
 
-jest.mock('../../../src/services/InsuranceService');
+jest.mock('../../src/services/InsuranceService');
 
 describe('InsuranceController', () => {
   let app: FastifyInstance;

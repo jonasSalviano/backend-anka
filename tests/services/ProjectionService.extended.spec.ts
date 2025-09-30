@@ -1,7 +1,7 @@
 import { Prisma } from '@prisma/client';
 const Dec = (n: number | string) => new Prisma.Decimal(n);
 
-jest.mock('../../../src/services/prisma', () => ({
+jest.mock('../../src/services/prisma', () => ({
   prisma: {
     simulationVersion: { findFirstOrThrow: jest.fn() },
     allocation: { findMany: jest.fn() },
@@ -14,8 +14,8 @@ jest.mock('../../../src/services/prisma', () => ({
     insurance: { findMany: jest.fn() },
   },
 }));
-import { prisma } from '../../../src/services/prisma';
-import { ProjectionService } from '../../../src/services/ProjectionService';
+import { prisma } from '../../src/services/prisma';
+import { ProjectionService } from '../../src/services/ProjectionService';
 
 describe('ProjectionService.run (Extended Scenarios)', () => {
   const baseVersion = {
@@ -48,7 +48,6 @@ describe('ProjectionService.run (Extended Scenarios)', () => {
       simulationId: 'sim-1', status: 'INVALIDO', realRatePct: 0, startDate: '2025-01-01T00:00:00.000Z',
     });
 
-    // INVALIDO: +0 - 1000 = -1000
     expect(invalido.points.find(p => p.year === 2025)!.total).toBe(-1000);
   });
 
@@ -72,18 +71,18 @@ describe('ProjectionService.run (Extended Scenarios)', () => {
     const res = await ProjectionService.run({
       simulationId: 'sim-1',
       status: 'VIVO',
-      realRatePct: 10, // 10% a.a.
+      realRatePct: 10,
       startDate: '2025-01-01T00:00:00.000Z',
     });
 
     const y2025 = res.points.find(p => p.year === 2025)!;
-    expect(y2025.total).toBe(1000); // No primeiro ano, sem juros.
+    expect(y2025.total).toBe(1000);
 
     const y2026 = res.points.find(p => p.year === 2026)!;
-    expect(y2026.total).toBe(1100); // 1000 + 10%
+    expect(y2026.total).toBe(1100); 
 
     const y2027 = res.points.find(p => p.year === 2027)!;
-    expect(y2027.total).toBe(1210); // 1100 + 10%
+    expect(y2027.total).toBe(1210);
   });
 
   test('movimentos devem respeitar a data de término (endDate)', async () => {
@@ -102,9 +101,9 @@ describe('ProjectionService.run (Extended Scenarios)', () => {
     expect(y2025.total).toBe(100);
 
     const y2026 = res.points.find(p => p.year === 2026)!;
-    expect(y2026.total).toBe(200); // 100 (2025) + 100 (2026)
+    expect(y2026.total).toBe(200);
 
     const y2027 = res.points.find(p => p.year === 2027)!;
-    expect(y2027.total).toBe(200); // movimento já encerrou, não soma mais
+    expect(y2027.total).toBe(200);
   });
 });
