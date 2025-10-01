@@ -1,4 +1,5 @@
 import Fastify from "fastify";
+import cors from '@fastify/cors';
 import swagger from "@fastify/swagger";
 import swaggerUi from "@fastify/swagger-ui";
 import dotenv from "dotenv";
@@ -40,7 +41,21 @@ export const buildServer = (opts = {}) => {
     transformStaticCSP: (header) => header,
   });
 
-  app.register(routes);
+   app.register(cors, {
+    origin: (origin, cb) => {
+      const allow = [
+        'http://localhost:5173',
+        'http://127.0.0.1:5173',
+      ].filter(Boolean);
+      if (!origin) return cb(null, true);
+      if (allow.includes(origin)) return cb(null, true);
+      return cb(new Error('CORS not allowed'), false);
+    },
+    methods: ['GET','POST','PATCH','DELETE','OPTIONS'],
+    credentials: true,
+    maxAge: 86400
+  });
+  app.register(routes, { prefix: '/api' });
 
   return app;
 };
